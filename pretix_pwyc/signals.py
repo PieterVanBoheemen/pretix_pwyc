@@ -34,53 +34,11 @@ def register_global_settings_receiver(sender, **kwargs):
     }
 
 
-@receiver(item_formsets, dispatch_uid="pretix_pwyc_item_formset")
-def pwyc_formset(sender, request, item, **kwargs):
-    """Add PWYC form to item edit page"""
-    try:
-        # Very simple implementation to avoid any string operation issues
-        return {
-            'title': 'Pay What You Can',
-            'content': '''
-            <div class="panel panel-default">
-                <div class="panel-heading">
-                    <h3 class="panel-title">Pay What You Can</h3>
-                </div>
-                <div class="panel-body">
-                    <div class="form-group">
-                        <div class="checkbox">
-                            <label>
-                                <input type="checkbox" name="pwyc-pwyc_enabled">
-                                Enable Pay What You Can
-                            </label>
-                            <p class="help-block">Allow customers to choose their own price for this item</p>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="id_pwyc-pwyc_min_amount">Minimum amount</label>
-                        <input type="number" step="0.01" name="pwyc-pwyc_min_amount" class="form-control" id="id_pwyc-pwyc_min_amount">
-                        <p class="help-block">Minimum amount customers must pay. Leave empty for no minimum.</p>
-                    </div>
-                    <div class="form-group">
-                        <label for="id_pwyc-pwyc_suggested_amount">Suggested amount</label>
-                        <input type="number" step="0.01" name="pwyc-pwyc_suggested_amount" class="form-control" id="id_pwyc-pwyc_suggested_amount">
-                        <p class="help-block">Suggested amount displayed to customers.</p>
-                    </div>
-                    <div class="form-group">
-                        <label for="id_pwyc-pwyc_explanation">Explanation text</label>
-                        <textarea name="pwyc-pwyc_explanation" class="form-control" rows="3" id="id_pwyc-pwyc_explanation"></textarea>
-                        <p class="help-block">Text explaining the PWYC option to customers.</p>
-                    </div>
-                </div>
-            </div>
-            ''',
-        }
-    except Exception as e:
-        logger.error(f"PWYC: Error in item formset: {e}")
-        return {
-            'title': 'Pay What You Can',
-            'content': '<div class="alert alert-danger">Error loading Pay What You Can settings.</div>',
-        }
+# Temporarily disable the item_formsets signal to isolate the issue
+# @receiver(item_formsets, dispatch_uid="pretix_pwyc_item_formset")
+def pwyc_formset_disabled(sender, request, item, **kwargs):
+    """Add PWYC form to item edit page - DISABLED FOR DEBUGGING"""
+    pass
 
 
 @receiver(nav_event_settings, dispatch_uid='pretix_pwyc_nav_settings')
