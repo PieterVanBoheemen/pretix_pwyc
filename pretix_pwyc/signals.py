@@ -47,48 +47,85 @@ def pwyc_formset(sender, request, item, **kwargs):
         # Create a simple formset with one form
         initial_data = {}
 
-        if item and item.pk:
-            initial_data = {
-                'pwyc_enabled': sender.settings.get(f'pwyc_enabled_{item.pk}', False),
-                'pwyc_min_amount': sender.settings.get(f'pwyc_min_amount_{item.pk}', ''),
-                'pwyc_suggested_amount': sender.settings.get(f'pwyc_suggested_amount_{item.pk}', ''),
-                'pwyc_explanation': sender.settings.get(f'pwyc_explanation_{item.pk}', ''),
-            }
+        if item and hasattr(item, 'pk') and item.pk:
+            try:
+                initial_data = {
+                    'pwyc_enabled': sender.settings.get(f'pwyc_enabled_{item.pk}', False),
+                    'pwyc_min_amount': sender.settings.get(f'pwyc_min_amount_{item.pk}', ''),
+                    'pwyc_suggested_amount': sender.settings.get(f'pwyc_suggested_amount_{item.pk}', ''),
+                    'pwyc_explanation': sender.settings.get(f'pwyc_explanation_{item.pk}', ''),
+                }
+            except Exception as e:
+                logger.error(f"PWYC: Error loading initial data: {e}")
+                initial_data = {}
 
-        # Check if this is a POST request with our data
-        is_post = request.method == 'POST' and 'pwyc-0-pwyc_enabled' in request.POST
+        # Safely check if this is a POST request with our data
+        is_post = False
+        try:
+            if hasattr(request, 'method') and hasattr(request, 'POST'):
+                method_str = str(request.method)
+                is_post = method_str == 'POST' and 'pwyc-0-pwyc_enabled' in request.POST
+        except Exception as e:
+            logger.error(f"PWYC: Error checking request method: {e}")
+            is_post = False
 
         # Create the formset
-        formset = PWYCFormSetClass(
-            data=request.POST if is_post else None,
-            initial=[initial_data] if not is_post else None,
-            prefix='pwyc'
-        )
+        try:
+            formset = PWYCFormSetClass(
+                data=request.POST if is_post else None,
+                initial=[initial_data] if not is_post else None,
+                prefix='pwyc'
+            )
+        except Exception as e:
+            logger.error(f"PWYC: Error creating formset: {e}")
+            # Create minimal formset
+            formset = PWYCFormSetClass(prefix='pwyc', initial=[{}])
 
-        # Pass event and item to forms
-        for form in formset.forms:
-            form.event = sender
-            form.item = item
+        # Pass event and item to forms safely
+        try:
+            for form in formset.forms:
+                form.event = sender
+                form.item = item
+        except Exception as e:
+            logger.error(f"PWYC: Error setting form properties: {e}")
 
         # Set formset properties
         formset.template = 'pretix_pwyc/item_edit_pwyc.html'
         formset.title = 'Pay What You Can'
 
         # Save if valid POST
-        if is_post and formset.is_valid():
-            for form in formset.forms:
-                form.save()
-            logger.info(f"PWYC: Settings saved for item {item.pk}")
+        if is_post:
+            try:
+                if formset.is_valid():
+                    for form in formset.forms:
+                        if hasattr(form, 'save'):
+                            form.save()
+                    logger.info(f"PWYC: Settings saved for item {item.pk}")
+                    formset.title = 'Pay What You Can (Saved)'
+                else:
+                    logger.error(f"PWYC: Formset validation failed: {formset.errors}")
+                    formset.title = 'Pay What You Can (Validation Error)'
+            except Exception as e:
+                logger.error(f"PWYC: Error saving formset: {e}")
+                formset.title = 'Pay What You Can (Save Error)'
 
         return formset
 
     except Exception as e:
         logger.error(f"PWYC: Error in item formset: {e}")
+        import traceback
+        logger.error(f"PWYC: Full traceback: {traceback.format_exc()}")
+
         # Return minimal formset on error
-        formset = PWYCFormSetClass(prefix='pwyc', initial=[{}])
-        formset.template = 'pretix_pwyc/item_edit_pwyc.html'
-        formset.title = 'Pay What You Can (Error)'
-        return formset
+        try:
+            formset = PWYCFormSetClass(prefix='pwyc', initial=[{}])
+            formset.template = 'pretix_pwyc/item_edit_pwyc.html'
+            formset.title = 'Pay What You Can (Error)'
+            return formset
+        except Exception as inner_e:
+            logger.error(f"PWYC: Error creating fallback formset: {inner_e}")
+            # Return None to disable this formset completely if everything fails
+            return None
 
 
 @receiver(nav_event_settings, dispatch_uid='pretix_pwyc_nav_settings')
