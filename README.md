@@ -1,3 +1,5 @@
+__Plugin is not functional yet__
+
 # pretix Pay What You Can
 
 A plugin for [pretix](https://github.com/pretix/pretix) that allows customers to choose their own price for tickets.
