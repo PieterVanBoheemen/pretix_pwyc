@@ -2,14 +2,13 @@ from decimal import Decimal
 from django.dispatch import receiver
 from django.template.loader import get_template
 from django.utils.translation import gettext_lazy as _
+
+# Import only the signals we know exist in pretix core
 from pretix.base.signals import (
     register_global_settings, event_copy_data, item_copy_data,
-    logentry_display, register_payment_providers,
-    item_forms, validate_cart_addons, validate_cart,
-    order_info
+    logentry_display
 )
 from pretix.presale.signals import (
-    checkout_confirm_messages, checkout_flow_steps,
     fee_calculation_for_cart, order_meta_from_request
 )
 from pretix.control.signals import nav_event_settings, item_formsets
@@ -24,7 +23,7 @@ def is_pwyc_item(event, item):
 
 
 @receiver(register_global_settings, dispatch_uid="pretix_pwyc_global_settings")
-def register_global_settings(sender, **kwargs):
+def register_global_settings_receiver(sender, **kwargs):
     return {
         'pwyc_explanation_default': '',
     }
@@ -61,67 +60,6 @@ def add_settings_tab(sender, request, **kwargs):
     }]
 
 
-@receiver(validate_cart_addons, dispatch_uid="pretix_pwyc_validate_addons")
-def validate_pwyc_price_addons(sender, addons, base_position, iao, request, **kwargs):
-    """
-    Handle price input during cart addon additions
-    """
-    item = base_position.item
-
-    if not is_pwyc_item(sender, item):
-        return
-
-    price_key = f'pwyc_price_{item.pk}'
-    if price_key in request.POST:
-        price = request.POST.get(price_key)
-        try:
-            price = Decimal(price)
-        except (ValueError, TypeError):
-            from pretix.presale.checkoutflow import CartError
-            raise CartError(_("Please enter a valid price."))
-
-        # Validate minimum price
-        min_price = sender.settings.get(f'pwyc_min_amount_{item.pk}')
-        if min_price and price < Decimal(min_price):
-            from pretix.presale.checkoutflow import CartError
-            raise CartError(_("The price must be at least {min_price}.").format(min_price=min_price))
-
-        # Store in session
-        session_key = f'pwyc_price_{item.pk}'
-        request.session[session_key] = str(price)
-
-
-@receiver(validate_cart, dispatch_uid="pretix_pwyc_validate_cart")
-def validate_pwyc_price(sender, positions, request, **kwargs):
-    """
-    Handle price input during normal cart additions
-    """
-    from pretix.presale.checkoutflow import CartError
-
-    for pos in positions:
-        item = pos.item
-
-        if not is_pwyc_item(sender, item):
-            continue
-
-        price_key = f'pwyc_price_{item.pk}'
-        if price_key in request.POST:
-            price = request.POST.get(price_key)
-            try:
-                price = Decimal(price)
-            except (ValueError, TypeError):
-                raise CartError(_("Please enter a valid price."))
-
-            # Validate minimum price
-            min_price = sender.settings.get(f'pwyc_min_amount_{item.pk}')
-            if min_price and price < Decimal(min_price):
-                raise CartError(_("The price must be at least {min_price}.").format(min_price=min_price))
-
-            # Store in session
-            session_key = f'pwyc_price_{item.pk}'
-            request.session[session_key] = str(price)
-
-
 @receiver(fee_calculation_for_cart, dispatch_uid="pretix_pwyc_fee_calculation")
 def apply_pwyc_price(sender, positions, invoice_address, meta_info, total, payment_requests, request, **kwargs):
     """
@@ -134,9 +72,9 @@ def apply_pwyc_price(sender, positions, invoice_address, meta_info, total, payme
                 price = Decimal(request.session[session_key])
 
                 # Store original price in meta_info for reference
-                meta_info = pos.meta_info or {}
-                meta_info['pwyc_original_price'] = str(pos.price)
-                pos.meta_info = meta_info
+                if not hasattr(pos, 'meta_info') or pos.meta_info is None:
+                    pos.meta_info = {}
+                pos.meta_info['pwyc_original_price'] = str(pos.price)
 
                 # Set the new price
                 pos.price = price
@@ -158,26 +96,6 @@ def pwyc_order_meta(sender, request, **kwargs):
                 meta[key] = request.session[key]
 
     return meta
-
-
-@receiver(order_info, dispatch_uid="pretix_pwyc_order_info")
-def pwyc_order_info(sender, order, request, **kwargs):
-    """
-    Display PWYC information on order detail page
-    """
-    pwyc_positions = []
-
-    for p in order.positions.all():
-        if p.meta_info and 'pwyc_original_price' in p.meta_info:
-            pwyc_positions.append(p)
-
-    if not pwyc_positions:
-        return
-
-    template = get_template('pretix_pwyc/order_info.html')
-    return template.render({
-        'positions': pwyc_positions,
-    })
 
 
 @receiver(logentry_display, dispatch_uid="pretix_pwyc_logentry_display")
@@ -202,40 +120,6 @@ def pwyc_logentry_display(sender, logentry, **kwargs):
             )
 
     return None
-
-
-@receiver(item_forms, dispatch_uid="pretix_pwyc_item_forms")
-def pwyc_item_forms(sender, item, request, **kwargs):
-    """
-    Add PWYC price form to product page
-    """
-    if not is_pwyc_item(sender, item):
-        return []
-
-    # Get configuration
-    min_price = sender.settings.get(f'pwyc_min_amount_{item.pk}')
-    suggested_price = sender.settings.get(f'pwyc_suggested_amount_{item.pk}')
-
-    # Create form
-    initial = {}
-    if suggested_price:
-        initial['pwyc_price'] = suggested_price
-
-    form = PWYCPriceForm(
-        item=item,
-        min_price=min_price,
-        suggested_price=suggested_price,
-        prefix=f'pwyc_{item.pk}',
-        data=request.POST if request.method == 'POST' else None,
-        initial=initial
-    )
-
-    template = get_template('pretix_pwyc/price_form.html')
-    return [{
-        'form': form,
-        'template': template,
-        'explanation': sender.settings.get(f'pwyc_explanation_{item.pk}'),
-    }]
 
 
 @receiver(event_copy_data, dispatch_uid='pretix_pwyc_copy_data')
@@ -281,3 +165,8 @@ def item_copy_data_receiver(sender, source, target, **kwargs):
             f'pwyc_explanation_{target.pk}',
             sender.settings.get(f'pwyc_explanation_{source.pk}')
         )
+
+
+# TODO: Implement customer-facing price input form
+# This will need to be done through template overrides or custom views
+# since the item_forms signal doesn't exist in this version of pretix
