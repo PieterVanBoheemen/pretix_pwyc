@@ -49,43 +49,74 @@ def pwyc_formset(sender, request, item, **kwargs):
 
         if item and hasattr(item, 'pk') and item.pk:
             try:
+                # Safely get settings values and convert them to proper types
+                pwyc_enabled = sender.settings.get(f'pwyc_enabled_{item.pk}', False)
+                pwyc_min_amount = sender.settings.get(f'pwyc_min_amount_{item.pk}', None)
+                pwyc_suggested_amount = sender.settings.get(f'pwyc_suggested_amount_{item.pk}', None)
+                pwyc_explanation = sender.settings.get(f'pwyc_explanation_{item.pk}', '')
+
+                # Convert to safe values
                 initial_data = {
-                    'pwyc_enabled': sender.settings.get(f'pwyc_enabled_{item.pk}', False),
-                    'pwyc_min_amount': sender.settings.get(f'pwyc_min_amount_{item.pk}', ''),
-                    'pwyc_suggested_amount': sender.settings.get(f'pwyc_suggested_amount_{item.pk}', ''),
-                    'pwyc_explanation': sender.settings.get(f'pwyc_explanation_{item.pk}', ''),
+                    'pwyc_enabled': bool(pwyc_enabled) if pwyc_enabled is not None else False,
+                    'pwyc_min_amount': str(pwyc_min_amount) if pwyc_min_amount not in [None, ''] else '',
+                    'pwyc_suggested_amount': str(pwyc_suggested_amount) if pwyc_suggested_amount not in [None, ''] else '',
+                    'pwyc_explanation': str(pwyc_explanation) if pwyc_explanation is not None else '',
                 }
+                logger.info(f"PWYC: Loaded initial data: {initial_data}")
             except Exception as e:
                 logger.error(f"PWYC: Error loading initial data: {e}")
-                initial_data = {}
+                initial_data = {
+                    'pwyc_enabled': False,
+                    'pwyc_min_amount': '',
+                    'pwyc_suggested_amount': '',
+                    'pwyc_explanation': '',
+                }
 
         # Safely check if this is a POST request with our data
         is_post = False
         try:
             if hasattr(request, 'method') and hasattr(request, 'POST'):
                 method_str = str(request.method)
-                is_post = method_str == 'POST' and 'pwyc-0-pwyc_enabled' in request.POST
+                # Check for any pwyc form fields in POST data
+                has_pwyc_data = any(str(key).startswith('pwyc-') for key in request.POST.keys())
+                is_post = method_str == 'POST' and has_pwyc_data
+                logger.info(f"PWYC: POST check - method: {method_str}, has_pwyc_data: {has_pwyc_data}, is_post: {is_post}")
         except Exception as e:
             logger.error(f"PWYC: Error checking request method: {e}")
             is_post = False
 
         # Create the formset
         try:
+            formset_data = request.POST if is_post else None
+            formset_initial = [initial_data] if not is_post else None
+
+            logger.info(f"PWYC: Creating formset with data={formset_data is not None}, initial={formset_initial}")
+
             formset = PWYCFormSetClass(
-                data=request.POST if is_post else None,
-                initial=[initial_data] if not is_post else None,
+                data=formset_data,
+                initial=formset_initial,
                 prefix='pwyc'
             )
+
+            logger.info(f"PWYC: Formset created successfully, forms count: {len(formset.forms)}")
         except Exception as e:
             logger.error(f"PWYC: Error creating formset: {e}")
+            import traceback
+            logger.error(f"PWYC: Formset creation traceback: {traceback.format_exc()}")
             # Create minimal formset
-            formset = PWYCFormSetClass(prefix='pwyc', initial=[{}])
+            formset = PWYCFormSetClass(prefix='pwyc', initial=[{
+                'pwyc_enabled': False,
+                'pwyc_min_amount': '',
+                'pwyc_suggested_amount': '',
+                'pwyc_explanation': '',
+            }])
 
         # Pass event and item to forms safely
         try:
             for form in formset.forms:
                 form.event = sender
                 form.item = item
+            logger.info(f"PWYC: Set event and item on {len(formset.forms)} forms")
         except Exception as e:
             logger.error(f"PWYC: Error setting form properties: {e}")
 
@@ -96,19 +127,32 @@ def pwyc_formset(sender, request, item, **kwargs):
         # Save if valid POST
         if is_post:
             try:
+                logger.info(f"PWYC: Processing POST data")
+                logger.info(f"PWYC: Formset is_valid: {formset.is_valid()}")
+
                 if formset.is_valid():
-                    for form in formset.forms:
-                        if hasattr(form, 'save'):
+                    logger.info(f"PWYC: Formset is valid, attempting to save")
+                    for i, form in enumerate(formset.forms):
+                        logger.info(f"PWYC: Form {i} cleaned_data: {form.cleaned_data}")
+                        if hasattr(form, 'save') and form.cleaned_data:
                             form.save()
+                            logger.info(f"PWYC: Form {i} saved successfully")
                     logger.info(f"PWYC: Settings saved for item {item.pk}")
                     formset.title = 'Pay What You Can (Saved)'
                 else:
-                    logger.error(f"PWYC: Formset validation failed: {formset.errors}")
+                    logger.error(f"PWYC: Formset validation failed")
+                    logger.error(f"PWYC: Formset errors: {formset.errors}")
+                    logger.error(f"PWYC: Formset non_form_errors: {formset.non_form_errors()}")
+                    for i, form in enumerate(formset.forms):
+                        logger.error(f"PWYC: Form {i} errors: {form.errors}")
                     formset.title = 'Pay What You Can (Validation Error)'
             except Exception as e:
                 logger.error(f"PWYC: Error saving formset: {e}")
+                import traceback
+                logger.error(f"PWYC: Save traceback: {traceback.format_exc()}")
                 formset.title = 'Pay What You Can (Save Error)'
 
+        logger.info(f"PWYC: Returning formset with title: {formset.title}")
         return formset
 
     except Exception as e:
@@ -118,7 +162,12 @@ def pwyc_formset(sender, request, item, **kwargs):
 
         # Return minimal formset on error
         try:
-            formset = PWYCFormSetClass(prefix='pwyc', initial=[{}])
+            formset = PWYCFormSetClass(prefix='pwyc', initial=[{
+                'pwyc_enabled': False,
+                'pwyc_min_amount': '',
+                'pwyc_suggested_amount': '',
+                'pwyc_explanation': '',
+            }])
             formset.template = 'pretix_pwyc/item_edit_pwyc.html'
             formset.title = 'Pay What You Can (Error)'
             return formset
