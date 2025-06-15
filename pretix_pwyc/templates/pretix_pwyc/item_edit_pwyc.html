@@ -6,12 +6,22 @@
         <h3 class="panel-title">{% trans "Pay What You Can" %}</h3>
     </div>
     <div class="panel-body">
+        {# This is the crucial part - the formset management form #}
+        {{ formset.management_form }}
+
         {% if formset.forms %}
             {% for form in formset.forms %}
                 {% bootstrap_form form %}
             {% endfor %}
         {% else %}
             <p>{% trans "No PWYC settings available" %}</p>
+        {% endif %}
+
+        {# Optional: Show any non-form errors #}
+        {% if formset.non_form_errors %}
+            <div class="alert alert-danger">
+                {{ formset.non_form_errors }}
+            </div>
         {% endif %}
     </div>
 </div>
