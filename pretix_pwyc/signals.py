@@ -273,32 +273,50 @@ def add_settings_tab(sender, request, **kwargs):
 
 
 @receiver(fee_calculation_for_cart, dispatch_uid="pretix_pwyc_fee_calculation")
-def apply_pwyc_price(sender, positions, invoice_address, meta_info, total, payment_requests, request, **kwargs):
+def apply_pwyc_price(sender, positions, invoice_address, request, **kwargs):
     """
     Apply custom prices to cart positions
+
+    Note: Using **kwargs to handle different pretix versions that may pass different arguments
     """
     try:
+        # Extract additional arguments that may be passed
+        meta_info = kwargs.get('meta_info', {})
+        total = kwargs.get('total', None)
+        payment_requests = kwargs.get('payment_requests', [])
+
+        logger.info(f"PWYC: Processing {len(positions)} positions for fee calculation")
+
         for pos in positions:
             if is_pwyc_item(sender, pos.item):
                 session_key = f'pwyc_price_{pos.item.pk}'
+                logger.info(f"PWYC: Checking for custom price for item {pos.item.pk}, session key: {session_key}")
+
                 if request and hasattr(request, 'session') and session_key in request.session:
                     try:
-                        price = Decimal(str(request.session[session_key]))
+                        custom_price = Decimal(str(request.session[session_key]))
+                        original_price = pos.price
+
+                        logger.info(f"PWYC: Found custom price {custom_price} for item {pos.item.pk} (original: {original_price})")
 
                         # Store original price in meta_info for reference
                         if not hasattr(pos, 'meta_info') or pos.meta_info is None:
                             pos.meta_info = {}
-                        pos.meta_info['pwyc_original_price'] = str(pos.price)
+                        pos.meta_info['pwyc_original_price'] = str(original_price)
 
                         # Set the new price
-                        pos.price = price
-                        logger.info(f"PWYC: Applied custom price {price} to item {pos.item.pk}")
+                        pos.price = custom_price
+                        logger.info(f"PWYC: Applied custom price {custom_price} to item {pos.item.pk}")
                     except Exception as e:
                         logger.error(f"PWYC: Error applying price for item {pos.item.pk}: {e}")
+                else:
+                    logger.info(f"PWYC: No custom price found for PWYC item {pos.item.pk}")
 
         return []  # No additional fees
     except Exception as e:
         logger.error(f"PWYC: Error in fee calculation: {e}")
+        import traceback
+        logger.error(f"PWYC: Fee calculation traceback: {traceback.format_exc()}")
         return []
 
 
