@@ -128,10 +128,20 @@ class PWYCItemSettingsForm(forms.Form):
         if not self.event or not self.item or not self.item.pk:
             return
 
-        self.event.settings.set(f'pwyc_enabled_{self.item.pk}', self.cleaned_data.get('pwyc_enabled', False))
-        self.event.settings.set(f'pwyc_min_amount_{self.item.pk}', self.cleaned_data.get('pwyc_min_amount'))
-        self.event.settings.set(f'pwyc_suggested_amount_{self.item.pk}', self.cleaned_data.get('pwyc_suggested_amount'))
-        self.event.settings.set(f'pwyc_explanation_{self.item.pk}', self.cleaned_data.get('pwyc_explanation'))
+        # Convert boolean to string to avoid pretix settings issues
+        pwyc_enabled = self.cleaned_data.get('pwyc_enabled', False)
+
+        # Store as string instead of boolean to avoid the startswith error
+        self.event.settings.set(f'pwyc_enabled_{self.item.pk}', 'true' if pwyc_enabled else 'false')
+
+        # Convert None values to empty strings to avoid serialization errors
+        min_amount = self.cleaned_data.get('pwyc_min_amount')
+        suggested_amount = self.cleaned_data.get('pwyc_suggested_amount')
+        explanation = self.cleaned_data.get('pwyc_explanation')
+
+        self.event.settings.set(f'pwyc_min_amount_{self.item.pk}', str(min_amount) if min_amount is not None else '')
+        self.event.settings.set(f'pwyc_suggested_amount_{self.item.pk}', str(suggested_amount) if suggested_amount is not None else '')
+        self.event.settings.set(f'pwyc_explanation_{self.item.pk}', str(explanation) if explanation is not None else '')
 
 
 class PWYCPriceForm(forms.Form):

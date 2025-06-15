@@ -22,7 +22,23 @@ logger = logging.getLogger(__name__)
 
 
 # Create the formset class
-PWYCFormSetClass = formset_factory(PWYCItemSettingsForm, extra=1, max_num=1)
+class PWYCFormSet(forms.BaseFormSet):
+    """Custom formset for PWYC settings"""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Set the required properties
+        self.template = 'pretix_pwyc/item_edit_pwyc.html'
+        self.title = 'Pay What You Can'
+
+    def save(self):
+        """Save all forms in the formset"""
+        for form in self.forms:
+            if hasattr(form, 'save') and form.cleaned_data:
+                form.save()
+
+
+PWYCFormSetClass = formset_factory(PWYCItemSettingsForm, formset=PWYCFormSet, extra=1, max_num=1)
 
 
 def is_pwyc_item(event, item):
