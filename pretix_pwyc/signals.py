@@ -76,26 +76,40 @@ def pwyc_formset(sender, request, item, **kwargs):
 
                 # Try each setting individually to isolate the problematic one
                 try:
-                    # The pwyc_enabled setting seems to be causing issues
-                    # Let's try a different approach - bypass the problematic setting
-                    # and use a fresh key or handle it differently
+                    # Instead of clearing the setting, let's try to read it safely
+                    # and only clear it if there's actually an error
 
-                    # First, let's try to clear any problematic boolean value
+                    pwyc_enabled = False  # Default value
+
                     try:
-                        # Check if there's a problematic value stored
-                        problem_key = f'pwyc_enabled_{item.pk}'
-                        # Try to delete any existing problematic value
-                        if hasattr(sender.settings, 'delete'):
-                            sender.settings.delete(problem_key)
-                        logger.info(f"PWYC: Cleared potentially problematic setting {problem_key}")
-                    except:
-                        pass  # Ignore errors when clearing
+                        # Try to get the setting value
+                        enabled_value = sender.settings.get(f'pwyc_enabled_{item.pk}', 'false')
+                        logger.info(f"PWYC: Got raw pwyc_enabled value: {enabled_value} (type: {type(enabled_value)})")
 
-                    # Now try to get the setting again, defaulting to False
-                    pwyc_enabled = False  # Start with safe default
-                    logger.info(f"PWYC: Using safe default for pwyc_enabled: {pwyc_enabled}")
+                        # Handle both string and boolean values safely
+                        if isinstance(enabled_value, str):
+                            pwyc_enabled = enabled_value.lower() == 'true'
+                        elif isinstance(enabled_value, bool):
+                            pwyc_enabled = enabled_value
+                        else:
+                            logger.warning(f"PWYC: Unexpected pwyc_enabled type: {type(enabled_value)}, using False")
+                            pwyc_enabled = False
+
+                        logger.info(f"PWYC: Processed pwyc_enabled: {pwyc_enabled}")
+
+                    except Exception as e:
+                        logger.error(f"PWYC: Error getting pwyc_enabled, will clear problematic value: {e}")
+                        # Only clear if there's actually an error
+                        try:
+                            if hasattr(sender.settings, 'delete'):
+                                sender.settings.delete(f'pwyc_enabled_{item.pk}')
+                            logger.info(f"PWYC: Cleared problematic setting pwyc_enabled_{item.pk}")
+                        except:
+                            pass
+                        pwyc_enabled = False
+
                 except Exception as e:
-                    logger.error(f"PWYC: Error getting pwyc_enabled: {e}")
+                    logger.error(f"PWYC: Error processing pwyc_enabled: {e}")
                     pwyc_enabled = False
 
                 try:
