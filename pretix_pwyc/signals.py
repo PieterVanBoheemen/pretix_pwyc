@@ -1,6 +1,7 @@
 from decimal import Decimal
 from django.dispatch import receiver
 from django.utils.translation import gettext_lazy as _
+from django.utils.safestring import mark_safe
 from django import forms
 from django.forms import formset_factory
 import logging
@@ -508,7 +509,7 @@ def add_pwyc_price_form(sender, item, variation, **kwargs):
         </script>
         '''
 
-        return html
+        return mark_safe(html)
 
     except Exception as e:
         logger.error(f"PWYC: Error adding price form for item {item.pk}: {e}")
