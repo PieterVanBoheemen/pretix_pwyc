@@ -22,7 +22,10 @@ logger = logging.getLogger(__name__)
 
 def is_pwyc_item(event, item):
     """Helper to check if an item is PWYC-enabled"""
-    return event.settings.get(f'pwyc_enabled_{item.pk}', False)
+    try:
+        return bool(event.settings.get(f'pwyc_enabled_{item.pk}', False))
+    except:
+        return False
 
 
 @receiver(register_global_settings, dispatch_uid="pretix_pwyc_global_settings")
@@ -37,33 +40,76 @@ def pwyc_formset(sender, request, item, **kwargs):
     """Add PWYC form to item edit page"""
     try:
         logger.info(f"PWYC: Adding formset for item {item.pk if item else 'None'}")
+        logger.info(f"PWYC: Request method: {getattr(request, 'method', 'Unknown')}")
+
+        # Safe method check
+        is_post = False
+        try:
+            is_post = str(request.method).upper() == 'POST'
+        except:
+            is_post = False
+
+        form_data = None
+        if is_post:
+            try:
+                form_data = request.POST
+            except:
+                form_data = None
 
         form = PWYCItemForm(
             prefix='pwyc',
             event=sender,
             item=item,
-            data=request.POST if request.method == 'POST' else None,
+            data=form_data,
         )
 
-        if request.method == 'POST' and form.is_valid():
-            form.save()
-            logger.info(f"PWYC: Form saved for item {item.pk}")
+        if is_post and form.is_valid():
+            try:
+                form.save()
+                logger.info(f"PWYC: Form saved for item {item.pk}")
+            except Exception as e:
+                logger.error(f"PWYC: Error saving form: {e}")
 
-        try:
-            template = get_template('pretix_pwyc/item_edit_pwyc.html')
-        except Exception as e:
-            logger.error(f"PWYC: Could not load template: {e}")
-            # Return a simple HTML string if template fails
-            return {
-                'title': _('Pay What You Can'),
-                'content': '<div class="alert alert-warning">Pay What You Can plugin loaded but template missing</div>',
-            }
+        # Simple HTML content instead of template for now
+        content = f'''
+        <div class="panel panel-default">
+            <div class="panel-heading">
+                <h3 class="panel-title">{_('Pay What You Can')}</h3>
+            </div>
+            <div class="panel-body">
+                <div class="form-group">
+                    <div class="checkbox">
+                        <label>
+                            <input type="checkbox" name="pwyc-pwyc_enabled" {'checked' if form.initial.get('pwyc_enabled') else ''}>
+                            {_('Enable Pay What You Can')}
+                        </label>
+                        <p class="help-block">{_('Allow customers to choose their own price for this item')}</p>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>{_('Minimum amount')}</label>
+                    <input type="number" step="0.01" name="pwyc-pwyc_min_amount" value="{form.initial.get('pwyc_min_amount', '')}" class="form-control">
+                    <p class="help-block">{_('Minimum amount customers must pay. Leave empty for no minimum.')}</p>
+                </div>
+                <div class="form-group">
+                    <label>{_('Suggested amount')}</label>
+                    <input type="number" step="0.01" name="pwyc-pwyc_suggested_amount" value="{form.initial.get('pwyc_suggested_amount', '')}" class="form-control">
+                    <p class="help-block">{_('Suggested amount displayed to customers.')}</p>
+                </div>
+                <div class="form-group">
+                    <label>{_('Explanation text')}</label>
+                    <textarea name="pwyc-pwyc_explanation" class="form-control" rows="3">{form.initial.get('pwyc_explanation', '')}</textarea>
+                    <p class="help-block">{_('Text explaining the PWYC option to customers.')}</p>
+                </div>
+            </div>
+        </div>
+        '''
 
         return {
             'title': _('Pay What You Can'),
-            'form': form,
-            'template': template,
+            'content': content,
         }
+
     except Exception as e:
         logger.error(f"PWYC: Error in item formset: {e}")
         # Return empty dict to not break the page
@@ -76,8 +122,8 @@ def add_settings_tab(sender, request, **kwargs):
     try:
         return [{
             'label': _('Pay What You Can'),
-            'url': '/control/event/{}/{}/settings/pwyc/'.format(sender.organizer.slug, sender.slug),
-            'active': request.path.endswith('/settings/pwyc/'),
+            'url': f'/control/event/{sender.organizer.slug}/{sender.slug}/settings/pwyc/',
+            'active': str(request.path).endswith('/settings/pwyc/'),
         }]
     except Exception as e:
         logger.error(f"PWYC: Error in nav settings: {e}")
@@ -93,17 +139,20 @@ def apply_pwyc_price(sender, positions, invoice_address, meta_info, total, payme
         for pos in positions:
             if is_pwyc_item(sender, pos.item):
                 session_key = f'pwyc_price_{pos.item.pk}'
-                if request and session_key in request.session:
-                    price = Decimal(request.session[session_key])
+                if request and hasattr(request, 'session') and session_key in request.session:
+                    try:
+                        price = Decimal(str(request.session[session_key]))
 
-                    # Store original price in meta_info for reference
-                    if not hasattr(pos, 'meta_info') or pos.meta_info is None:
-                        pos.meta_info = {}
-                    pos.meta_info['pwyc_original_price'] = str(pos.price)
+                        # Store original price in meta_info for reference
+                        if not hasattr(pos, 'meta_info') or pos.meta_info is None:
+                            pos.meta_info = {}
+                        pos.meta_info['pwyc_original_price'] = str(pos.price)
 
-                    # Set the new price
-                    pos.price = price
-                    logger.info(f"PWYC: Applied custom price {price} to item {pos.item.pk}")
+                        # Set the new price
+                        pos.price = price
+                        logger.info(f"PWYC: Applied custom price {price} to item {pos.item.pk}")
+                    except Exception as e:
+                        logger.error(f"PWYC: Error applying price for item {pos.item.pk}: {e}")
 
         return []  # No additional fees
     except Exception as e:
@@ -120,9 +169,9 @@ def pwyc_order_meta(sender, request, **kwargs):
         meta = {}
 
         # Find all pwyc session keys
-        if request:
+        if request and hasattr(request, 'session'):
             for key in request.session.keys():
-                if key.startswith('pwyc_price_'):
+                if str(key).startswith('pwyc_price_'):
                     meta[key] = request.session[key]
 
         return meta
@@ -137,7 +186,7 @@ def pwyc_logentry_display(sender, logentry, **kwargs):
     Display human-readable log entries
     """
     try:
-        if logentry.action_type.startswith('pretix_pwyc'):
+        if hasattr(logentry, 'action_type') and str(logentry.action_type).startswith('pretix_pwyc'):
             if logentry.action_type == 'pretix_pwyc.item.enabled':
                 return _('Pay What You Can was enabled for item "{item}"').format(
                     item=logentry.content_object or _('Unknown')
@@ -147,7 +196,7 @@ def pwyc_logentry_display(sender, logentry, **kwargs):
                     item=logentry.content_object or _('Unknown')
                 )
             elif logentry.action_type == 'pretix_pwyc.order.price_changed':
-                data = logentry.parsed_data
+                data = getattr(logentry, 'parsed_data', {})
                 return _('Custom price of {price} was set for item "{item}"').format(
                     price=data.get('price', '?'),
                     item=data.get('item', _('Unknown'))
