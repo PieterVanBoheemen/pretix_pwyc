@@ -7,6 +7,7 @@ except ImportError:
 
 
 class PluginApp(PluginConfig):
+    default = True
     name = 'pretix_pwyc'
     verbose_name = _('Pay What You Can')
 
