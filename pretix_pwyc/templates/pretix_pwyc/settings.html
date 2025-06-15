@@ -1,0 +1,26 @@
+{% extends "pretixcontrol/event/settings_base.html" %}
+{% load i18n %}
+{% load bootstrap3 %}
+
+{% block title %}{% trans "Pay What You Can Settings" %}{% endblock %}
+
+{% block inside %}
+    <h1>{% trans "Pay What You Can Settings" %}</h1>
+    <p>
+        {% blocktrans trimmed %}
+        Configure global settings for the Pay What You Can plugin.
+        {% endblocktrans %}
+    </p>
+    <form action="" method="post" class="form-horizontal" enctype="multipart/form-data">
+        {% csrf_token %}
+        <fieldset>
+            <legend>{% trans "Global Settings" %}</legend>
+            {% bootstrap_form form layout="horizontal" %}
+        </fieldset>
+        <div class="form-group submit-group">
+            <button type="submit" class="btn btn-primary btn-save">
+                {% trans "Save" %}
+            </button>
+        </div>
+    </form>
+{% endblock %}

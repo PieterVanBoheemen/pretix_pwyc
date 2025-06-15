@@ -1,0 +1,5 @@
+include LICENSE
+include README.md
+recursive-include pretix_pwyc/locale *
+recursive-include pretix_pwyc/static *
+recursive-include pretix_pwyc/templates *

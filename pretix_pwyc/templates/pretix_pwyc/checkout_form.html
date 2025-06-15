@@ -1,0 +1,49 @@
+{% load i18n %}
+{% load bootstrap3 %}
+
+<div class="pwyc-checkout-form">
+    <div class="panel panel-default">
+        <div class="panel-heading">
+            <h4 class="panel-title">
+                <i class="fa fa-heart"></i>
+                {% trans "Pay What You Can" %}
+            </h4>
+        </div>
+        <div class="panel-body">
+            {% if explanation %}
+                <div class="pwyc-explanation">
+                    {{ explanation|linebreaks }}
+                </div>
+            {% endif %}
+
+            <div class="row">
+                <div class="col-md-6">
+                    {% bootstrap_form form %}
+                </div>
+                <div class="col-md-6">
+                    {% if suggested_price %}
+                        <div class="well well-sm">
+                            <h5>{% trans "Suggested Amount" %}</h5>
+                            <button type="button" class="btn btn-default pwyc-suggested-price"
+                                    data-price="{{ suggested_price }}" data-item="{{ item.pk }}">
+                                {{ suggested_price|floatformat:2 }} {{ event.currency }}
+                            </button>
+                            <p class="help-block">
+                                {% trans "Click to use this suggested amount" %}
+                            </p>
+                        </div>
+                    {% endif %}
+
+                    {% if min_price %}
+                        <div class="alert alert-info">
+                            <i class="fa fa-info-circle"></i>
+                            {% blocktrans with min_price=min_price %}
+                                Minimum amount: {{ min_price }}
+                            {% endblocktrans %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

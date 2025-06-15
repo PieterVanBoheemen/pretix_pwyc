@@ -1,0 +1,29 @@
+{% load i18n %}
+{% load money %}
+
+<div class="panel panel-default">
+    <div class="panel-heading">
+        <h3 class="panel-title">{% trans "Pay What You Can" %}</h3>
+    </div>
+    <div class="panel-body">
+        <p>{% trans "The following items were purchased with custom pricing:" %}</p>
+        <table class="table table-condensed">
+            <thead>
+                <tr>
+                    <th>{% trans "Item" %}</th>
+                    <th>{% trans "Original Price" %}</th>
+                    <th>{% trans "Custom Price" %}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pos in positions %}
+                    <tr>
+                        <td>{{ pos.item.name }}</td>
+                        <td>{{ pos.meta_info.pwyc_original_price|money:event.currency }}</td>
+                        <td>{{ pos.price|money:event.currency }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>

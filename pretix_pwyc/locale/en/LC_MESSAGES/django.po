@@ -1,0 +1,143 @@
+# Translations template for pretix-pwyc.
+# Copyright (C) 2023 YOUR NAME
+# This file is distributed under the same license as the pretix-pwyc project.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2023.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pretix-pwyc\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2023-05-01 12:00+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: Pieter van Boheemen <mail@pietervanboheemen.nl>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+#: pretix_pwyc/__init__.py:10 pretix_pwyc/__init__.py:14
+msgid "Pay What You Can"
+msgstr ""
+
+#: pretix_pwyc/__init__.py:16
+msgid "Allows customers to choose their own price for tickets"
+msgstr ""
+
+#: pretix_pwyc/forms.py:13
+msgid "Default explanation text"
+msgstr ""
+
+#: pretix_pwyc/forms.py:15
+msgid "Default text explaining the PWYC option to customers."
+msgstr ""
+
+#: pretix_pwyc/forms.py:24
+msgid "Enable Pay What You Can"
+msgstr ""
+
+#: pretix_pwyc/forms.py:26
+msgid "Allow customers to choose their own price for this item"
+msgstr ""
+
+#: pretix_pwyc/forms.py:31 pretix_pwyc/templates/pretix_pwyc/order_info.html:15
+msgid "Minimum amount"
+msgstr ""
+
+#: pretix_pwyc/forms.py:34
+msgid "Minimum amount customers must pay. Leave empty for no minimum."
+msgstr ""
+
+#: pretix_pwyc/forms.py:39
+msgid "Suggested amount"
+msgstr ""
+
+#: pretix_pwyc/forms.py:42
+msgid "Suggested amount displayed to customers."
+msgstr ""
+
+#: pretix_pwyc/forms.py:47
+msgid "Explanation text"
+msgstr ""
+
+#: pretix_pwyc/forms.py:50
+msgid "Text explaining the PWYC option to customers."
+msgstr ""
+
+#: pretix_pwyc/forms.py:76
+msgid "Choose your price"
+msgstr ""
+
+#: pretix_pwyc/forms.py:79
+msgid "Choose your price (suggested: {suggested_price})"
+msgstr ""
+
+#: pretix_pwyc/forms.py:87
+msgid "Minimum price: {min_price}"
+msgstr ""
+
+#: pretix_pwyc/forms.py:94 pretix_pwyc/signals.py:93
+msgid "The price must be at least {min_price}."
+msgstr ""
+
+#: pretix_pwyc/signals.py:83 pretix_pwyc/signals.py:119
+msgid "Please enter a valid price."
+msgstr ""
+
+#: pretix_pwyc/signals.py:200
+msgid "Pay What You Can was enabled for item \"{item}\""
+msgstr ""
+
+#: pretix_pwyc/signals.py:204
+msgid "Pay What You Can was disabled for item \"{item}\""
+msgstr ""
+
+#: pretix_pwyc/signals.py:208
+msgid "Custom price of {price} was set for item \"{item}\""
+msgstr ""
+
+#: pretix_pwyc/signals.py:210 pretix_pwyc/signals.py:212
+msgid "Unknown"
+msgstr ""
+
+#: pretix_pwyc/templates/pretix_pwyc/order_info.html:6
+#: pretix_pwyc/templates/pretix_pwyc/item_edit_pwyc.html:5
+#: pretix_pwyc/templates/pretix_pwyc/settings.html:4
+#: pretix_pwyc/templates/pretix_pwyc/settings.html:8
+msgid "Pay What You Can Settings"
+msgstr ""
+
+#: pretix_pwyc/templates/pretix_pwyc/order_info.html:9
+msgid "The following items were purchased with custom pricing:"
+msgstr ""
+
+#: pretix_pwyc/templates/pretix_pwyc/order_info.html:12
+msgid "Item"
+msgstr ""
+
+#: pretix_pwyc/templates/pretix_pwyc/order_info.html:13
+msgid "Original Price"
+msgstr ""
+
+#: pretix_pwyc/templates/pretix_pwyc/order_info.html:14
+msgid "Custom Price"
+msgstr ""
+
+#: pretix_pwyc/templates/pretix_pwyc/settings.html:10
+msgid ""
+"Configure global settings for the Pay What You Can plugin."
+msgstr ""
+
+#: pretix_pwyc/templates/pretix_pwyc/settings.html:16
+msgid "Global Settings"
+msgstr ""
+
+#: pretix_pwyc/templates/pretix_pwyc/settings.html:21
+msgid "Save"
+msgstr ""
+
+#: pretix_pwyc/views.py:26
+msgid "Your settings have been saved."
+msgstr ""

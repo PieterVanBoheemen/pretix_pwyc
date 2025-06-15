@@ -1,0 +1,12 @@
+{% load i18n %}
+{% load bootstrap3 %}
+
+<div class="pwyc-form">
+    {% if explanation %}
+        <div class="pwyc-explanation">
+            {{ explanation|linebreaks }}
+        </div>
+    {% endif %}
+
+    {% bootstrap_form form %}
+</div>
