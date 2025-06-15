@@ -11,7 +11,7 @@ from pretix.base.signals import (
     logentry_display
 )
 from pretix.presale.signals import (
-    fee_calculation_for_cart, order_meta_from_request
+    fee_calculation_for_cart, order_meta_from_request, item_description
 )
 from pretix.control.signals import nav_event_settings, item_formsets
 
@@ -415,6 +415,101 @@ def item_copy_data_receiver(sender, source, target, **kwargs):
         logger.error(f"PWYC: Error in item copy: {e}")
 
 
-# TODO: Implement customer-facing price input form
-# This will need to be done through template overrides or custom views
-# since the item_forms signal doesn't exist in this version of pretix
+@receiver(item_description, dispatch_uid="pretix_pwyc_item_description")
+def add_pwyc_price_form(sender, item, variation, **kwargs):
+    """Add Pay What You Can price input form to item description"""
+    try:
+        if not is_pwyc_item(sender, item):
+            return ""
+
+        # Get PWYC settings for this item
+        min_amount = sender.settings.get(f'pwyc_min_amount_{item.pk}', '')
+        suggested_amount = sender.settings.get(f'pwyc_suggested_amount_{item.pk}', '')
+        explanation = sender.settings.get(f'pwyc_explanation_{item.pk}', '')
+
+        logger.info(f"PWYC: Adding price form for item {item.pk}, min: {min_amount}, suggested: {suggested_amount}")
+
+        # Build the HTML for the price input form
+        html = f'''
+        <div class="pwyc-price-form" data-item-id="{item.pk}">
+            <div class="alert alert-info">
+                <h4><i class="fa fa-heart"></i> Pay What You Can</h4>
+                {f'<p>{explanation}</p>' if explanation else ''}
+
+                <div class="form-group">
+                    <label for="pwyc_price_{item.pk}">Choose your price:</label>
+                    <div class="input-group">
+                        <input type="number"
+                               class="form-control pwyc-price-input"
+                               id="pwyc_price_{item.pk}"
+                               name="pwyc_price_{item.pk}"
+                               step="0.01"
+                               min="{min_amount if min_amount else '0'}"
+                               placeholder="{suggested_amount if suggested_amount else 'Enter amount'}"
+                               value="{suggested_amount if suggested_amount else ''}"
+                               data-item-id="{item.pk}">
+                        <span class="input-group-addon">{sender.currency}</span>
+                    </div>
+                    {f'<small class="help-block">Minimum amount: {min_amount} {sender.currency}</small>' if min_amount else ''}
+                    {f'<small class="help-block">Suggested amount: {suggested_amount} {sender.currency}</small>' if suggested_amount else ''}
+                </div>
+            </div>
+        </div>
+
+        <script>
+        document.addEventListener('DOMContentLoaded', function() {{
+            var input = document.getElementById('pwyc_price_{item.pk}');
+            if (input) {{
+                input.addEventListener('change', function() {{
+                    var price = parseFloat(this.value);
+                    var itemId = this.getAttribute('data-item-id');
+                    var minPrice = parseFloat(this.getAttribute('min')) || 0;
+
+                    if (price < minPrice) {{
+                        alert('Price must be at least ' + minPrice + ' {sender.currency}');
+                        this.value = minPrice;
+                        price = minPrice;
+                    }}
+
+                    // Store the custom price in session via AJAX
+                    var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+                    var headers = {{
+                        'Content-Type': 'application/json'
+                    }};
+
+                    if (csrfToken) {{
+                        headers['X-CSRFToken'] = csrfToken.value;
+                    }}
+
+                    fetch('/pwyc/set-price/', {{
+                        method: 'POST',
+                        headers: headers,
+                        body: JSON.stringify({{
+                            'item_id': itemId,
+                            'price': price
+                        }})
+                    }}).then(function(response) {{
+                        if (response.ok) {{
+                            console.log('PWYC price set:', price);
+                            // Optionally update the displayed price on the page
+                            var priceDisplay = document.querySelector('[data-item-id="' + itemId + '"] .item-price');
+                            if (priceDisplay) {{
+                                priceDisplay.textContent = price + ' {sender.currency}';
+                            }}
+                        }} else {{
+                            console.error('Failed to set PWYC price');
+                        }}
+                    }}).catch(function(error) {{
+                        console.error('Error setting PWYC price:', error);
+                    }});
+                }});
+            }}
+        }});
+        </script>
+        '''
+
+        return html
+
+    except Exception as e:
+        logger.error(f"PWYC: Error adding price form for item {item.pk}: {e}")
+        return ""
