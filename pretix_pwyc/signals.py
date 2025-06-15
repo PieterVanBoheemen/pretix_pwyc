@@ -40,14 +40,13 @@ def pwyc_formset(sender, request, item, **kwargs):
     """Add PWYC form to item edit page"""
     try:
         logger.info(f"PWYC: Adding formset for item {item.pk if item else 'None'}")
-        logger.info(f"PWYC: Request method: {getattr(request, 'method', 'Unknown')}")
 
-        # Safe method check
-        is_post = False
-        try:
-            is_post = str(request.method).upper() == 'POST'
-        except:
-            is_post = False
+        # Safely get request method
+        request_method = getattr(request, 'method', 'GET')
+        logger.info(f"PWYC: Request method: {request_method}")
+
+        # Check if this is a POST request
+        is_post = request_method == 'POST'
 
         form_data = None
         if is_post:
@@ -70,7 +69,13 @@ def pwyc_formset(sender, request, item, **kwargs):
             except Exception as e:
                 logger.error(f"PWYC: Error saving form: {e}")
 
-        # Simple HTML content instead of template for now
+        # Get current values for display
+        pwyc_enabled = form.initial.get('pwyc_enabled', False)
+        pwyc_min_amount = form.initial.get('pwyc_min_amount', '')
+        pwyc_suggested_amount = form.initial.get('pwyc_suggested_amount', '')
+        pwyc_explanation = form.initial.get('pwyc_explanation', '')
+
+        # Create the HTML content directly
         content = f'''
         <div class="panel panel-default">
             <div class="panel-heading">
@@ -80,25 +85,25 @@ def pwyc_formset(sender, request, item, **kwargs):
                 <div class="form-group">
                     <div class="checkbox">
                         <label>
-                            <input type="checkbox" name="pwyc-pwyc_enabled" {'checked' if form.initial.get('pwyc_enabled') else ''}>
+                            <input type="checkbox" name="pwyc-pwyc_enabled" {'checked' if pwyc_enabled else ''}>
                             {_('Enable Pay What You Can')}
                         </label>
                         <p class="help-block">{_('Allow customers to choose their own price for this item')}</p>
                     </div>
                 </div>
                 <div class="form-group">
-                    <label>{_('Minimum amount')}</label>
-                    <input type="number" step="0.01" name="pwyc-pwyc_min_amount" value="{form.initial.get('pwyc_min_amount', '')}" class="form-control">
+                    <label for="id_pwyc-pwyc_min_amount">{_('Minimum amount')}</label>
+                    <input type="number" step="0.01" name="pwyc-pwyc_min_amount" value="{pwyc_min_amount}" class="form-control" id="id_pwyc-pwyc_min_amount">
                     <p class="help-block">{_('Minimum amount customers must pay. Leave empty for no minimum.')}</p>
                 </div>
                 <div class="form-group">
-                    <label>{_('Suggested amount')}</label>
-                    <input type="number" step="0.01" name="pwyc-pwyc_suggested_amount" value="{form.initial.get('pwyc_suggested_amount', '')}" class="form-control">
+                    <label for="id_pwyc-pwyc_suggested_amount">{_('Suggested amount')}</label>
+                    <input type="number" step="0.01" name="pwyc-pwyc_suggested_amount" value="{pwyc_suggested_amount}" class="form-control" id="id_pwyc-pwyc_suggested_amount">
                     <p class="help-block">{_('Suggested amount displayed to customers.')}</p>
                 </div>
                 <div class="form-group">
-                    <label>{_('Explanation text')}</label>
-                    <textarea name="pwyc-pwyc_explanation" class="form-control" rows="3">{form.initial.get('pwyc_explanation', '')}</textarea>
+                    <label for="id_pwyc-pwyc_explanation">{_('Explanation text')}</label>
+                    <textarea name="pwyc-pwyc_explanation" class="form-control" rows="3" id="id_pwyc-pwyc_explanation">{pwyc_explanation}</textarea>
                     <p class="help-block">{_('Text explaining the PWYC option to customers.')}</p>
                 </div>
             </div>
@@ -106,24 +111,30 @@ def pwyc_formset(sender, request, item, **kwargs):
         '''
 
         return {
-            'title': _('Pay What You Can'),
+            'title': str(_('Pay What You Can')),
             'content': content,
         }
 
     except Exception as e:
         logger.error(f"PWYC: Error in item formset: {e}")
-        # Return empty dict to not break the page
-        return {}
+        # Return a minimal working response instead of empty dict
+        return {
+            'title': str(_('Pay What You Can')),
+            'content': '<div class="alert alert-danger">Error loading Pay What You Can settings.</div>',
+        }
 
 
 @receiver(nav_event_settings, dispatch_uid='pretix_pwyc_nav_settings')
 def add_settings_tab(sender, request, **kwargs):
     """Add PWYC settings tab to event settings"""
     try:
+        url = f'/control/event/{sender.organizer.slug}/{sender.slug}/settings/pwyc/'
+        is_active = request.resolver_match and 'pwyc' in request.resolver_match.url_name
+
         return [{
-            'label': _('Pay What You Can'),
-            'url': f'/control/event/{sender.organizer.slug}/{sender.slug}/settings/pwyc/',
-            'active': str(request.path).endswith('/settings/pwyc/'),
+            'label': str(_('Pay What You Can')),
+            'url': url,
+            'active': is_active,
         }]
     except Exception as e:
         logger.error(f"PWYC: Error in nav settings: {e}")
