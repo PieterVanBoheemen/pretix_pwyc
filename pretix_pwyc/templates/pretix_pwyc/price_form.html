@@ -1,33 +1,34 @@
 {% load i18n %}
 
-<div class="pwyc-price-form" data-item-id="{{ item.pk }}">
-    <div class="alert alert-info">
-        <h4><i class="fa fa-heart"></i> {% trans "Pay What You Can" %}</h4>
-        {% if explanation %}
-            <p>{{ explanation }}</p>
+<div class="pwyc-price-form" data-item-id="{{ item.pk }}" style="margin-top: 15px; padding: 15px; border: 1px solid #ddd; border-radius: 4px; background-color: #f9f9f9;">
+    <h4 style="margin-top: 0;"><i class="fa fa-heart"></i> {% trans "Pay What You Can" %}</h4>
+
+    {% if explanation %}
+        <p>{{ explanation }}</p>
+    {% endif %}
+
+    <div class="form-group">
+        <label for="pwyc_price_{{ item.pk }}">{% trans "Choose your price:" %}</label>
+        <div class="input-group">
+            <input type="number"
+                   class="form-control pwyc-price-input"
+                   id="pwyc_price_{{ item.pk }}"
+                   name="pwyc_price_{{ item.pk }}"
+                   step="0.01"
+                   min="{% if min_amount %}{{ min_amount }}{% else %}0{% endif %}"
+                   placeholder="{% if suggested_amount %}{{ suggested_amount }}{% else %}{% trans 'Enter amount' %}{% endif %}"
+                   value="{% if suggested_amount %}{{ suggested_amount }}{% endif %}"
+                   data-item-id="{{ item.pk }}">
+            <span class="input-group-addon">{{ currency }}</span>
+        </div>
+
+        {% if min_amount %}
+            <small class="help-block">{% blocktrans with min_amount=min_amount currency=currency %}Minimum: {{ min_amount }} {{ currency }}{% endblocktrans %}</small>
         {% endif %}
 
-        <div class="form-group">
-            <label for="pwyc_price_{{ item.pk }}">{% trans "Choose your price:" %}</label>
-            <div class="input-group">
-                <input type="number"
-                       class="form-control pwyc-price-input"
-                       id="pwyc_price_{{ item.pk }}"
-                       name="pwyc_price_{{ item.pk }}"
-                       step="0.01"
-                       min="{% if min_amount %}{{ min_amount }}{% else %}0{% endif %}"
-                       placeholder="{% if suggested_amount %}{{ suggested_amount }}{% else %}{% trans 'Enter amount' %}{% endif %}"
-                       value="{% if suggested_amount %}{{ suggested_amount }}{% endif %}"
-                       data-item-id="{{ item.pk }}">
-                <span class="input-group-addon">{{ currency }}</span>
-            </div>
-            {% if min_amount %}
-                <small class="help-block">{% blocktrans with min_amount=min_amount currency=currency %}Minimum amount: {{ min_amount }} {{ currency }}{% endblocktrans %}</small>
-            {% endif %}
-            {% if suggested_amount %}
-                <small class="help-block">{% blocktrans with suggested_amount=suggested_amount currency=currency %}Suggested amount: {{ suggested_amount }} {{ currency }}{% endblocktrans %}</small>
-            {% endif %}
-        </div>
+        {% if suggested_amount %}
+            <small class="help-block">{% blocktrans with suggested_amount=suggested_amount currency=currency %}Suggested: {{ suggested_amount }} {{ currency }}{% endblocktrans %}</small>
+        {% endif %}
     </div>
 </div>
 
@@ -66,16 +67,28 @@ document.addEventListener('DOMContentLoaded', function() {
             }).then(function(response) {
                 if (response.ok) {
                     console.log('PWYC price set:', price);
-                    // Optionally update the displayed price on the page
-                    var priceDisplay = document.querySelector('[data-item-id="' + itemId + '"] .item-price');
-                    if (priceDisplay) {
-                        priceDisplay.textContent = price + ' {{ currency }}';
+                    // Show a success message
+                    var messageEl = document.getElementById('pwyc_message_' + itemId);
+                    if (!messageEl) {
+                        messageEl = document.createElement('div');
+                        messageEl.id = 'pwyc_message_' + itemId;
+                        messageEl.className = 'alert alert-success';
+                        messageEl.style.marginTop = '10px';
+                        input.parentNode.parentNode.appendChild(messageEl);
                     }
+                    messageEl.textContent = '{% trans "Custom price saved!" %}';
+                    setTimeout(function() {
+                        if (messageEl.parentNode) {
+                            messageEl.parentNode.removeChild(messageEl);
+                        }
+                    }, 3000);
                 } else {
                     console.error('Failed to set PWYC price');
+                    alert('{% trans "Failed to save price. Please try again." %}');
                 }
             }).catch(function(error) {
                 console.error('Error setting PWYC price:', error);
+                alert('{% trans "Failed to save price. Please try again." %}');
             });
         });
     }
