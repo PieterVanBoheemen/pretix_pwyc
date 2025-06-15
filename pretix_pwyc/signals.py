@@ -50,10 +50,37 @@ def pwyc_formset(sender, request, item, **kwargs):
         if item and hasattr(item, 'pk') and item.pk:
             try:
                 # Safely get settings values and convert them to proper types
-                pwyc_enabled = sender.settings.get(f'pwyc_enabled_{item.pk}', False)
-                pwyc_min_amount = sender.settings.get(f'pwyc_min_amount_{item.pk}', None)
-                pwyc_suggested_amount = sender.settings.get(f'pwyc_suggested_amount_{item.pk}', None)
-                pwyc_explanation = sender.settings.get(f'pwyc_explanation_{item.pk}', '')
+                # The error suggests that one of these settings calls is problematic
+                logger.info(f"PWYC: Attempting to load settings for item {item.pk}")
+
+                # Try each setting individually to isolate the problematic one
+                try:
+                    pwyc_enabled = sender.settings.get(f'pwyc_enabled_{item.pk}', False)
+                    logger.info(f"PWYC: Got pwyc_enabled: {pwyc_enabled} (type: {type(pwyc_enabled)})")
+                except Exception as e:
+                    logger.error(f"PWYC: Error getting pwyc_enabled: {e}")
+                    pwyc_enabled = False
+
+                try:
+                    pwyc_min_amount = sender.settings.get(f'pwyc_min_amount_{item.pk}', None)
+                    logger.info(f"PWYC: Got pwyc_min_amount: {pwyc_min_amount} (type: {type(pwyc_min_amount)})")
+                except Exception as e:
+                    logger.error(f"PWYC: Error getting pwyc_min_amount: {e}")
+                    pwyc_min_amount = None
+
+                try:
+                    pwyc_suggested_amount = sender.settings.get(f'pwyc_suggested_amount_{item.pk}', None)
+                    logger.info(f"PWYC: Got pwyc_suggested_amount: {pwyc_suggested_amount} (type: {type(pwyc_suggested_amount)})")
+                except Exception as e:
+                    logger.error(f"PWYC: Error getting pwyc_suggested_amount: {e}")
+                    pwyc_suggested_amount = None
+
+                try:
+                    pwyc_explanation = sender.settings.get(f'pwyc_explanation_{item.pk}', '')
+                    logger.info(f"PWYC: Got pwyc_explanation: {pwyc_explanation} (type: {type(pwyc_explanation)})")
+                except Exception as e:
+                    logger.error(f"PWYC: Error getting pwyc_explanation: {e}")
+                    pwyc_explanation = ''
 
                 # Convert to safe values
                 initial_data = {
@@ -65,6 +92,8 @@ def pwyc_formset(sender, request, item, **kwargs):
                 logger.info(f"PWYC: Loaded initial data: {initial_data}")
             except Exception as e:
                 logger.error(f"PWYC: Error loading initial data: {e}")
+                import traceback
+                logger.error(f"PWYC: Initial data traceback: {traceback.format_exc()}")
                 initial_data = {
                     'pwyc_enabled': False,
                     'pwyc_min_amount': '',
