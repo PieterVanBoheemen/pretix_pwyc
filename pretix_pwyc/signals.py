@@ -437,7 +437,9 @@ def add_pwyc_price_form(sender, item, variation, **kwargs):
         ]
 
         if explanation:
-            html_parts.append(f'<p>{explanation}</p>')
+            # Escape the explanation text but allow HTML in our structure
+            from django.utils.html import escape
+            html_parts.append(f'<p>{escape(explanation)}</p>')
 
         html_parts.extend([
             '<div class="form-group">',
@@ -458,9 +460,9 @@ def add_pwyc_price_form(sender, item, variation, **kwargs):
 
         html = ''.join(html_parts)
 
-        # Try different approaches to return safe HTML
-        from django.utils.html import format_html
-        return format_html(html)
+        # Use mark_safe instead of format_html
+        from django.utils.safestring import mark_safe
+        return mark_safe(html)
 
     except Exception as e:
         logger.error(f"PWYC: Error adding price form for item {item.pk}: {e}")
