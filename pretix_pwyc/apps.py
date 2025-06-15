@@ -16,7 +16,7 @@ class PluginApp(PluginConfig):
         author = _('Pieter van Boheemen')
         description = _('Allows customers to choose their own price for tickets')
         visible = True
-        version = '1.0.0'
+        version = '0.0.9'
         category = 'FEATURE'
         compatibility = "pretix>=4.0.0"
 
