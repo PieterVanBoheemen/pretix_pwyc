@@ -9,7 +9,7 @@ except:
 
 setup(
     name='pretix-pwyc',
-    version='1.0.0',
+    version='0.0.9',
     description='Pay What You Can plugin for pretix',
     long_description=long_description,
     url='https://github.com/pietervanboheemen/pretix-pwyc',
