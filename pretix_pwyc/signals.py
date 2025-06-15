@@ -1,6 +1,8 @@
 from decimal import Decimal
 from django.dispatch import receiver
 from django.utils.translation import gettext_lazy as _
+from django import forms
+from django.forms import formset_factory
 import logging
 
 # Import only the signals we know exist in pretix core
@@ -14,9 +16,13 @@ from pretix.presale.signals import (
 from pretix.control.signals import nav_event_settings, item_formsets
 
 from pretix.base.models import LogEntry
-from .forms import PWYCSettingsForm, PWYCItemForm, PWYCPriceForm
+from .forms import PWYCSettingsForm, PWYCItemForm, PWYCPriceForm, PWYCItemSettingsForm
 
 logger = logging.getLogger(__name__)
+
+
+# Create the formset class
+PWYCFormSetClass = formset_factory(PWYCItemSettingsForm, extra=1, max_num=1)
 
 
 def is_pwyc_item(event, item):
@@ -34,11 +40,55 @@ def register_global_settings_receiver(sender, **kwargs):
     }
 
 
-# Temporarily disable the item_formsets signal to isolate the issue
-# @receiver(item_formsets, dispatch_uid="pretix_pwyc_item_formset")
-def pwyc_formset_disabled(sender, request, item, **kwargs):
-    """Add PWYC form to item edit page - DISABLED FOR DEBUGGING"""
-    pass
+@receiver(item_formsets, dispatch_uid="pretix_pwyc_item_formset")
+def pwyc_formset(sender, request, item, **kwargs):
+    """Add PWYC form to item edit page"""
+    try:
+        # Create a simple formset with one form
+        initial_data = {}
+
+        if item and item.pk:
+            initial_data = {
+                'pwyc_enabled': sender.settings.get(f'pwyc_enabled_{item.pk}', False),
+                'pwyc_min_amount': sender.settings.get(f'pwyc_min_amount_{item.pk}', ''),
+                'pwyc_suggested_amount': sender.settings.get(f'pwyc_suggested_amount_{item.pk}', ''),
+                'pwyc_explanation': sender.settings.get(f'pwyc_explanation_{item.pk}', ''),
+            }
+
+        # Check if this is a POST request with our data
+        is_post = request.method == 'POST' and 'pwyc-0-pwyc_enabled' in request.POST
+
+        # Create the formset
+        formset = PWYCFormSetClass(
+            data=request.POST if is_post else None,
+            initial=[initial_data] if not is_post else None,
+            prefix='pwyc'
+        )
+
+        # Pass event and item to forms
+        for form in formset.forms:
+            form.event = sender
+            form.item = item
+
+        # Set formset properties
+        formset.template = 'pretix_pwyc/item_edit_pwyc.html'
+        formset.title = 'Pay What You Can'
+
+        # Save if valid POST
+        if is_post and formset.is_valid():
+            for form in formset.forms:
+                form.save()
+            logger.info(f"PWYC: Settings saved for item {item.pk}")
+
+        return formset
+
+    except Exception as e:
+        logger.error(f"PWYC: Error in item formset: {e}")
+        # Return minimal formset on error
+        formset = PWYCFormSetClass(prefix='pwyc', initial=[{}])
+        formset.template = 'pretix_pwyc/item_edit_pwyc.html'
+        formset.title = 'Pay What You Can (Error)'
+        return formset
 
 
 @receiver(nav_event_settings, dispatch_uid='pretix_pwyc_nav_settings')
