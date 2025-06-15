@@ -430,87 +430,40 @@ def add_pwyc_price_form(sender, item, variation, **kwargs):
 
         logger.info(f"PWYC: Adding price form for item {item.pk}, min: {min_amount}, suggested: {suggested_amount}")
 
-        # Build the HTML for the price input form
-        html = f'''
-        <div class="pwyc-price-form" data-item-id="{item.pk}">
-            <div class="alert alert-info">
-                <h4><i class="fa fa-heart"></i> Pay What You Can</h4>
-                {f'<p>{explanation}</p>' if explanation else ''}
+        # Create a simple, safe HTML string
+        html_parts = [
+            '<div class="pwyc-price-form alert alert-info" style="margin-top: 15px;">',
+            '<h4><i class="fa fa-heart"></i> Pay What You Can</h4>'
+        ]
 
-                <div class="form-group">
-                    <label for="pwyc_price_{item.pk}">Choose your price:</label>
-                    <div class="input-group">
-                        <input type="number"
-                               class="form-control pwyc-price-input"
-                               id="pwyc_price_{item.pk}"
-                               name="pwyc_price_{item.pk}"
-                               step="0.01"
-                               min="{min_amount if min_amount else '0'}"
-                               placeholder="{suggested_amount if suggested_amount else 'Enter amount'}"
-                               value="{suggested_amount if suggested_amount else ''}"
-                               data-item-id="{item.pk}">
-                        <span class="input-group-addon">{sender.currency}</span>
-                    </div>
-                    {f'<small class="help-block">Minimum amount: {min_amount} {sender.currency}</small>' if min_amount else ''}
-                    {f'<small class="help-block">Suggested amount: {suggested_amount} {sender.currency}</small>' if suggested_amount else ''}
-                </div>
-            </div>
-        </div>
+        if explanation:
+            html_parts.append(f'<p>{explanation}</p>')
 
-        <script>
-        document.addEventListener('DOMContentLoaded', function() {{
-            var input = document.getElementById('pwyc_price_{item.pk}');
-            if (input) {{
-                input.addEventListener('change', function() {{
-                    var price = parseFloat(this.value);
-                    var itemId = this.getAttribute('data-item-id');
-                    var minPrice = parseFloat(this.getAttribute('min')) || 0;
+        html_parts.extend([
+            '<div class="form-group">',
+            f'<label for="pwyc_price_{item.pk}">Choose your price:</label>',
+            '<div class="input-group">',
+            f'<input type="number" class="form-control" id="pwyc_price_{item.pk}" step="0.01" min="{min_amount or 0}" value="{suggested_amount or ""}" data-item-id="{item.pk}">',
+            f'<span class="input-group-addon">{sender.currency}</span>',
+            '</div>'
+        ])
 
-                    if (price < minPrice) {{
-                        alert('Price must be at least ' + minPrice + ' {sender.currency}');
-                        this.value = minPrice;
-                        price = minPrice;
-                    }}
+        if min_amount:
+            html_parts.append(f'<small class="help-block">Minimum: {min_amount} {sender.currency}</small>')
 
-                    // Store the custom price in session via AJAX
-                    var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
-                    var headers = {{
-                        'Content-Type': 'application/json'
-                    }};
+        if suggested_amount:
+            html_parts.append(f'<small class="help-block">Suggested: {suggested_amount} {sender.currency}</small>')
 
-                    if (csrfToken) {{
-                        headers['X-CSRFToken'] = csrfToken.value;
-                    }}
+        html_parts.append('</div></div>')
 
-                    fetch('/pwyc/set-price/', {{
-                        method: 'POST',
-                        headers: headers,
-                        body: JSON.stringify({{
-                            'item_id': itemId,
-                            'price': price
-                        }})
-                    }}).then(function(response) {{
-                        if (response.ok) {{
-                            console.log('PWYC price set:', price);
-                            // Optionally update the displayed price on the page
-                            var priceDisplay = document.querySelector('[data-item-id="' + itemId + '"] .item-price');
-                            if (priceDisplay) {{
-                                priceDisplay.textContent = price + ' {sender.currency}';
-                            }}
-                        }} else {{
-                            console.error('Failed to set PWYC price');
-                        }}
-                    }}).catch(function(error) {{
-                        console.error('Error setting PWYC price:', error);
-                    }});
-                }});
-            }}
-        }});
-        </script>
-        '''
+        html = ''.join(html_parts)
 
-        return mark_safe(html)
+        # Try different approaches to return safe HTML
+        from django.utils.html import format_html
+        return format_html(html)
 
     except Exception as e:
         logger.error(f"PWYC: Error adding price form for item {item.pk}: {e}")
+        import traceback
+        logger.error(f"PWYC: Traceback: {traceback.format_exc()}")
         return ""

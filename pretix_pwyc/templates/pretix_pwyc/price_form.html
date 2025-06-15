@@ -1,12 +1,83 @@
 {% load i18n %}
-{% load bootstrap3 %}
 
-<div class="pwyc-form">
-    {% if explanation %}
-        <div class="pwyc-explanation">
-            {{ explanation|linebreaks }}
+<div class="pwyc-price-form" data-item-id="{{ item.pk }}">
+    <div class="alert alert-info">
+        <h4><i class="fa fa-heart"></i> {% trans "Pay What You Can" %}</h4>
+        {% if explanation %}
+            <p>{{ explanation }}</p>
+        {% endif %}
+
+        <div class="form-group">
+            <label for="pwyc_price_{{ item.pk }}">{% trans "Choose your price:" %}</label>
+            <div class="input-group">
+                <input type="number"
+                       class="form-control pwyc-price-input"
+                       id="pwyc_price_{{ item.pk }}"
+                       name="pwyc_price_{{ item.pk }}"
+                       step="0.01"
+                       min="{% if min_amount %}{{ min_amount }}{% else %}0{% endif %}"
+                       placeholder="{% if suggested_amount %}{{ suggested_amount }}{% else %}{% trans 'Enter amount' %}{% endif %}"
+                       value="{% if suggested_amount %}{{ suggested_amount }}{% endif %}"
+                       data-item-id="{{ item.pk }}">
+                <span class="input-group-addon">{{ currency }}</span>
+            </div>
+            {% if min_amount %}
+                <small class="help-block">{% blocktrans with min_amount=min_amount currency=currency %}Minimum amount: {{ min_amount }} {{ currency }}{% endblocktrans %}</small>
+            {% endif %}
+            {% if suggested_amount %}
+                <small class="help-block">{% blocktrans with suggested_amount=suggested_amount currency=currency %}Suggested amount: {{ suggested_amount }} {{ currency }}{% endblocktrans %}</small>
+            {% endif %}
         </div>
-    {% endif %}
-
-    {% bootstrap_form form %}
+    </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var input = document.getElementById('pwyc_price_{{ item.pk }}');
+    if (input) {
+        input.addEventListener('change', function() {
+            var price = parseFloat(this.value);
+            var itemId = this.getAttribute('data-item-id');
+            var minPrice = parseFloat(this.getAttribute('min')) || 0;
+
+            if (price < minPrice) {
+                alert('{% trans "Price must be at least" %} ' + minPrice + ' {{ currency }}');
+                this.value = minPrice;
+                price = minPrice;
+            }
+
+            // Store the custom price in session via AJAX
+            var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+            var headers = {
+                'Content-Type': 'application/json'
+            };
+
+            if (csrfToken) {
+                headers['X-CSRFToken'] = csrfToken.value;
+            }
+
+            fetch('/pwyc/set-price/', {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify({
+                    'item_id': itemId,
+                    'price': price
+                })
+            }).then(function(response) {
+                if (response.ok) {
+                    console.log('PWYC price set:', price);
+                    // Optionally update the displayed price on the page
+                    var priceDisplay = document.querySelector('[data-item-id="' + itemId + '"] .item-price');
+                    if (priceDisplay) {
+                        priceDisplay.textContent = price + ' {{ currency }}';
+                    }
+                } else {
+                    console.error('Failed to set PWYC price');
+                }
+            }).catch(function(error) {
+                console.error('Error setting PWYC price:', error);
+            });
+        });
+    }
+});
+</script>
