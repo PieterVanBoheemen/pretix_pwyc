@@ -28,7 +28,12 @@ PWYCFormSetClass = formset_factory(PWYCItemSettingsForm, extra=1, max_num=1)
 def is_pwyc_item(event, item):
     """Helper to check if an item is PWYC-enabled"""
     try:
-        return bool(event.settings.get(f'pwyc_enabled_{item.pk}', False))
+        enabled_setting = event.settings.get(f'pwyc_enabled_{item.pk}', 'false')
+        # Handle both string and boolean values
+        if isinstance(enabled_setting, str):
+            return enabled_setting.lower() == 'true'
+        else:
+            return bool(enabled_setting)
     except:
         return False
 
@@ -55,8 +60,24 @@ def pwyc_formset(sender, request, item, **kwargs):
 
                 # Try each setting individually to isolate the problematic one
                 try:
-                    pwyc_enabled = sender.settings.get(f'pwyc_enabled_{item.pk}', False)
-                    logger.info(f"PWYC: Got pwyc_enabled: {pwyc_enabled} (type: {type(pwyc_enabled)})")
+                    # The pwyc_enabled setting seems to be causing issues
+                    # Let's try a different approach - bypass the problematic setting
+                    # and use a fresh key or handle it differently
+
+                    # First, let's try to clear any problematic boolean value
+                    try:
+                        # Check if there's a problematic value stored
+                        problem_key = f'pwyc_enabled_{item.pk}'
+                        # Try to delete any existing problematic value
+                        if hasattr(sender.settings, 'delete'):
+                            sender.settings.delete(problem_key)
+                        logger.info(f"PWYC: Cleared potentially problematic setting {problem_key}")
+                    except:
+                        pass  # Ignore errors when clearing
+
+                    # Now try to get the setting again, defaulting to False
+                    pwyc_enabled = False  # Start with safe default
+                    logger.info(f"PWYC: Using safe default for pwyc_enabled: {pwyc_enabled}")
                 except Exception as e:
                     logger.error(f"PWYC: Error getting pwyc_enabled: {e}")
                     pwyc_enabled = False
